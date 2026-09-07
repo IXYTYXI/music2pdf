@@ -66,3 +66,7 @@ Basic Pitch 模型和实现由 Spotify 提供，Apache-2.0；TensorFlow.js 为 A
 ## RTX 4060 本地分轨代码
 
 新增独立的 [Python 分轨后端与 Windows 使用说明](backend/README.md)，提供 CUDA 推理、人声/四轨/六轨预设、单任务排队、结果下载以及显存/耗时记录。当前网站尚未接入此服务。代码已做无 GPU 的接口和调度测试，Windows 安装及 4060 真实推理仍需在目标电脑验证。
+
+## 多版本训练数据准备
+
+新增 [本地数据工作台](backend/DATASET.md)：按作品文件夹收集多份录音和乐谱，试听/预览、检查缺失及重复内容，以固定种子导出训练/验证/测试 JSONL 索引。运行 `backend/start-dataset.sh`（Mac/Linux）或 `backend/start-dataset.ps1`（Windows），访问本机 8766 端口。无需 GPU；尚未进行识谱、对齐或模型训练。
