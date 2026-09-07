@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { validateAudio, type Note } from '../lib/music/score';
 import {
   audioChunks,
+  recommendedParallelism,
   mergeChunkNotes,
   transcribeAudio,
   type WorkerPort,
@@ -130,4 +131,164 @@ void test('boundary onset jitter across ownership cutoff does not erase notes', 
   const result = mergeChunkNotes(first, [note(1.99)], chunks[1]);
   assert.equal(result.length, 1);
   assert.ok(Math.abs(result[0].start - 30) < 0.06);
+});
+void test('parallel workers finish out of order but merge in timeline order with monotonic progress', async () => {
+  const pending: WorkerPort[] = [];
+  let active = 0,
+    maxActive = 0,
+    terminated = 0;
+  const progress: number[] = [];
+  const factory = (): WorkerPort => {
+    active++;
+    maxActive = Math.max(maxActive, active);
+    const w: WorkerPort = {
+      onmessage: null,
+      onerror: null,
+      terminate() {
+        active--;
+        terminated++;
+      },
+      postMessage() {
+        pending.push(w);
+      },
+    };
+    return w;
+  };
+  const job = transcribeAudio(
+    new Float32Array(61 * 22050),
+    'https://example.com',
+    (p) => progress.push(p),
+    new AbortController().signal,
+    factory,
+    2,
+  );
+  assert.equal(pending.length, 2);
+  pending[1].onmessage?.({ data: { type: 'progress', progress: 80 } });
+  pending[0].onmessage?.({ data: { type: 'progress', progress: 10 } });
+  pending[1].onmessage?.({ data: { type: 'complete', notes: [note(1, 6)] } });
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+  assert.equal(pending.length, 3);
+  pending[2].onmessage?.({
+    data: { type: 'complete', notes: [note(2, 0.5, 67)] },
+  });
+  pending[0].onmessage?.({ data: { type: 'complete', notes: [note(29, 3)] } });
+  const result = await job;
+  assert.deepEqual(
+    result.map((n) => [n.pitch, n.start, n.duration]),
+    [
+      [60, 29, 6],
+      [67, 60, 0.5],
+    ],
+  );
+  assert.equal(maxActive, 2);
+  assert.equal(terminated, 3);
+  assert.ok(progress.every((p, i) => i === 0 || p >= progress[i - 1]));
+  assert.equal(progress.at(-1), 100);
+});
+void test('parallel cancellation terminates all active workers without launching queued chunks', async () => {
+  const c = new AbortController();
+  let created = 0,
+    terminated = 0;
+  const factory = (): WorkerPort => {
+    created++;
+    return {
+      onmessage: null,
+      onerror: null,
+      postMessage() {},
+      terminate() {
+        terminated++;
+      },
+    };
+  };
+  const job = transcribeAudio(
+    new Float32Array(131 * 22050),
+    'https://example.com',
+    () => {},
+    c.signal,
+    factory,
+    2,
+  );
+  c.abort();
+  await assert.rejects(job, { name: 'AbortError' });
+  assert.equal(created, 2);
+  assert.equal(terminated, 2);
+});
+void test('one worker failure aborts its peers and rejects the entire result', async () => {
+  const pending: WorkerPort[] = [];
+  let terminated = 0;
+  const factory = (): WorkerPort => {
+    const w: WorkerPort = {
+      onmessage: null,
+      onerror: null,
+      postMessage() {
+        pending.push(w);
+      },
+      terminate() {
+        terminated++;
+      },
+    };
+    return w;
+  };
+  const job = transcribeAudio(
+    new Float32Array(131 * 22050),
+    'https://example.com',
+    () => {},
+    new AbortController().signal,
+    factory,
+    2,
+  );
+  pending[1].onmessage?.({
+    data: { type: 'error', message: 'model unavailable' },
+  });
+  await assert.rejects(job, /model unavailable/);
+  assert.equal(pending.length, 2);
+  assert.equal(terminated, 2);
+});
+
+void test('automatic parallelism stays conservative on low-core or low-memory devices', () => {
+  assert.equal(recommendedParallelism(2, 8), 1);
+  assert.equal(recommendedParallelism(8, 2), 1);
+  assert.equal(recommendedParallelism(8, 8), 2);
+  assert.equal(recommendedParallelism(4, undefined), 2);
+});
+void test('concurrency is capped at four and at the number of chunks', async () => {
+  let active = 0,
+    maxActive = 0;
+  const factory = (): WorkerPort => {
+    active++;
+    maxActive = Math.max(maxActive, active);
+    const w: WorkerPort = {
+      onmessage: null,
+      onerror: null,
+      terminate() {
+        active--;
+      },
+      postMessage() {
+        queueMicrotask(() =>
+          w.onmessage?.({ data: { type: 'complete', notes: [] } }),
+        );
+      },
+    };
+    return w;
+  };
+  await transcribeAudio(
+    new Float32Array(151 * 22050),
+    'https://example.com',
+    () => {},
+    new AbortController().signal,
+    factory,
+    99,
+  );
+  assert.equal(maxActive, 4);
+  assert.equal(active, 0);
+  maxActive = 0;
+  await transcribeAudio(
+    new Float32Array(5 * 22050),
+    'https://example.com',
+    () => {},
+    new AbortController().signal,
+    factory,
+    4,
+  );
+  assert.equal(maxActive, 1);
 });

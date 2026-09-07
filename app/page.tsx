@@ -27,7 +27,10 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { StaffScore, NumberedScore } from '@/components/score-view';
 import { NoteEditor } from '@/components/note-editor';
-import { transcribeAudio } from '@/lib/music/long-audio';
+import {
+  recommendedParallelism,
+  transcribeAudio,
+} from '@/lib/music/long-audio';
 import { decodeFile, makeDemo, synthesize } from '@/lib/music/audio';
 import { download, toMidi } from '@/lib/music/export';
 import {
@@ -61,6 +64,7 @@ export default function Home() {
     [tab, setTab] = useState('staff'),
     [playing, setPlaying] = useState(false),
     [isDemo, setIsDemo] = useState(false),
+    [parallel, setParallel] = useState('auto'),
     [scoreReady, setScoreReady] = useState(false),
     [drag, setDrag] = useState(false);
   const picker = useRef<HTMLInputElement>(null),
@@ -183,6 +187,8 @@ export default function Home() {
           }
         },
         controller.signal,
+        undefined,
+        parallel === 'auto' ? recommendedParallelism() : Number(parallel),
       );
       if (run !== generation.current) return;
       if (!result.length) {
@@ -365,6 +371,25 @@ export default function Home() {
                 <p>支持同时发声的旋律与和弦</p>
               </div>
               <Check size={15} />
+            </div>
+            <div className="parallel-setting">
+              <span id="parallel-label">并行处理</span>
+              <Select
+                value={parallel}
+                disabled={busy}
+                onValueChange={(v) => setParallel(String(v))}
+              >
+                <SelectTrigger aria-labelledby="parallel-label">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">自动（推荐）</SelectItem>
+                  <SelectItem value="1">1 路 · 节省内存</SelectItem>
+                  <SelectItem value="2">2 路 · 并行识别</SelectItem>
+                  <SelectItem value="4">4 路 · 高性能电脑</SelectItem>
+                </SelectContent>
+              </Select>
+              <small>自动使用 1–2 路。并行越多，内存占用越高。</small>
             </div>
             {(status === 'ready' || (hasScore && samples)) && (
               <button

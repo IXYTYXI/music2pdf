@@ -82,6 +82,14 @@ export interface WorkerPort {
   ): void;
   terminate(): void;
 }
+export function recommendedParallelism(
+  cores = typeof navigator === 'undefined' ? 2 : navigator.hardwareConcurrency,
+  memoryGB = typeof navigator === 'undefined'
+    ? undefined
+    : (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+): number {
+  return cores >= 4 && (memoryGB === undefined || memoryGB >= 4) ? 2 : 1;
+}
 export async function transcribeAudio(
   samples: Float32Array,
   origin: string,
@@ -91,21 +99,43 @@ export async function transcribeAudio(
     new Worker(new URL('./transcribe.worker.ts', import.meta.url), {
       type: 'module',
     }) as unknown as WorkerPort,
+  concurrency = 1,
 ): Promise<Note[]> {
+  signal.throwIfAborted();
   const chunks = audioChunks(samples.length / SAMPLE_RATE);
-  let notes: Note[] = [];
-  for (let i = 0; i < chunks.length; i++) {
-    signal.throwIfAborted();
-    const chunk = chunks[i];
-    const local = await new Promise<Note[]>((resolve, reject) => {
-      const worker = createWorker();
+  const parallelism = Math.min(
+    chunks.length,
+    Math.max(1, Math.min(4, Math.floor(concurrency) || 1)),
+  );
+  const results: Note[][] = Array.from({ length: chunks.length }, () => []);
+  const progress = chunks.map(() => 0);
+  const group = new AbortController();
+  const abortGroup = () => group.abort();
+  signal.addEventListener('abort', abortGroup, { once: true });
+  let next = 0,
+    completed = 0;
+  let failure: unknown;
+  const report = (i: number, value: number) => {
+    progress[i] = Math.max(progress[i], Math.min(100, Math.max(0, value)));
+    onProgress(
+      Math.min(
+        99,
+        Math.round(progress.reduce((sum, p) => sum + p, 0) / chunks.length),
+      ),
+      `${parallelism} 路并行 · 已完成 ${completed}/${chunks.length} 段`,
+    );
+  };
+  const infer = (i: number) =>
+    new Promise<Note[]>((resolve, reject) => {
+      const chunk = chunks[i],
+        worker = createWorker();
       let finished = false;
       let timer: ReturnType<typeof setTimeout>;
       const finish = (error?: Error, result?: Note[]) => {
         if (finished) return;
         finished = true;
         clearTimeout(timer);
-        signal.removeEventListener('abort', abort);
+        group.signal.removeEventListener('abort', abort);
         worker.onmessage = null;
         worker.onerror = null;
         worker.terminate();
@@ -121,51 +151,62 @@ export async function transcribeAudio(
           300000,
         );
       };
-      signal.addEventListener('abort', abort, { once: true });
+      group.signal.addEventListener('abort', abort, { once: true });
       worker.onmessage = ({ data }) => {
         if (finished) return;
         touch();
         if (data.type === 'complete') finish(undefined, data.notes);
         else if (data.type === 'error')
           finish(
-            new Error(`第 ${i + 1} 段识别失败：${data.message ?? '未知错误'}`),
-          );
-        else if (data.type === 'progress')
-          onProgress(
-            Math.min(
-              99,
-              Math.round(
-                ((i + (data.progress ?? 0) / 100) / chunks.length) * 100,
-              ),
+            new Error(
+              `第 ${i + 1} 段识别失败：${data.message ?? '未知错误'}。可降低并行数量后重试。`,
             ),
-            `第 ${i + 1}/${chunks.length} 段 · ${data.label ?? '正在识别…'}`,
           );
+        else if (data.type === 'progress') report(i, data.progress ?? 0);
       };
       worker.onerror = () =>
-        finish(
-          new Error(
-            '识别引擎加载失败，请检查网络后重试，或使用最新版 Chrome / Edge。',
-          ),
-        );
+        finish(new Error('识别引擎运行失败，请降低并行数量或检查网络后重试。'));
       touch();
       try {
-        signal.throwIfAborted();
+        group.signal.throwIfAborted();
         const audio = samples.slice(
           Math.round(chunk.inputStart * SAMPLE_RATE),
           Math.round(chunk.inputEnd * SAMPLE_RATE),
         );
-        onProgress(
-          Math.round((i / chunks.length) * 100),
-          `第 ${i + 1}/${chunks.length} 段 · 正在准备…`,
-        );
+        report(i, 0);
         worker.postMessage({ audio, origin }, [audio.buffer]);
       } catch (error) {
         finish(error instanceof Error ? error : new Error('音频分段失败'));
       }
     });
+  const lane = async () => {
+    try {
+      while (next < chunks.length && !group.signal.aborted) {
+        const i = next++;
+        results[i] = await infer(i);
+        group.signal.throwIfAborted();
+        completed++;
+        report(i, 100);
+      }
+    } catch (error) {
+      if (!group.signal.aborted) {
+        failure = error;
+        group.abort();
+      }
+    }
+  };
+  try {
+    await Promise.all(Array.from({ length: parallelism }, () => lane()));
     signal.throwIfAborted();
-    notes = mergeChunkNotes(notes, local, chunk);
+    if (failure) throw failure;
+    // Stitch in source order even when workers finish in a different order.
+    let notes: Note[] = [];
+    for (let i = 0; i < chunks.length; i++)
+      notes = mergeChunkNotes(notes, results[i], chunks[i]);
+    onProgress(100, '识别完成');
+    return notes;
+  } finally {
+    signal.removeEventListener('abort', abortGroup);
+    group.abort();
   }
-  onProgress(100, '识别完成');
-  return notes;
 }
