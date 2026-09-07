@@ -42,3 +42,9 @@ next-env.d.ts
 /public/model/model.json
 /public/wasm/
 *.tsbuildinfo
+
+# Local CUDA separation backend
+/backend/.venv*/
+/backend/data/
+__pycache__/
+*.pyc

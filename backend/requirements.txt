@@ -1,0 +1,4 @@
+-r requirements-api.txt
+# Install the CUDA wheel first with install-4060.ps1; keep that version fixed.
+torch==2.9.1
+pymss==2.1.4

@@ -62,3 +62,7 @@ node scripts/check-inference.mjs
 ## 第三方许可
 
 Basic Pitch 模型和实现由 Spotify 提供，Apache-2.0；TensorFlow.js 为 Apache-2.0；OpenSheetMusicDisplay 为 BSD-3-Clause；Tone.js MIDI 为 MIT。详见 `THIRD_PARTY_NOTICES.md` 与对应依赖的许可文件。
+
+## RTX 4060 本地分轨代码
+
+新增独立的 [Python 分轨后端与 Windows 使用说明](backend/README.md)，提供 CUDA 推理、人声/四轨/六轨预设、单任务排队、结果下载以及显存/耗时记录。当前网站尚未接入此服务。代码已做无 GPU 的接口和调度测试，Windows 安装及 4060 真实推理仍需在目标电脑验证。
