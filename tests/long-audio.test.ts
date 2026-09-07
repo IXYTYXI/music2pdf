@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { validateAudio, type Note } from '../lib/music/score';
 import {
   audioChunks,
+  validateRange,
+  initialRange,
   recommendedParallelism,
   mergeChunkNotes,
   transcribeAudio,
@@ -16,9 +18,11 @@ const note = (start: number, duration = 1, pitch = 60): Note => ({
   velocity: 0.7,
   track: 'piano',
 });
-void test('accepts a five-minute recording but rejects more than ten minutes', () => {
-  assert.doesNotThrow(() => validateAudio('song.mp3', 60 * 1024 * 1024, 300));
-  assert.throws(() => validateAudio('song.mp3', 100, 601));
+void test('accepts the supplied orchestral duration and rejects more than one hour', () => {
+  assert.doesNotThrow(() =>
+    validateAudio('song.mp3', 40 * 1024 * 1024, 999.027),
+  );
+  assert.throws(() => validateAudio('song.mp3', 100, 3601));
 });
 void test('chunks cover full duration, include boundary context and never exceed 34 seconds', () => {
   const chunks = audioChunks(131);
@@ -291,4 +295,20 @@ void test('concurrency is capped at four and at the number of chunks', async () 
     4,
   );
   assert.equal(maxActive, 1);
+});
+
+void test('long recordings start with a visible one-minute trial range', () => {
+  assert.deepEqual(initialRange(999), { start: 0, end: 60 });
+  assert.deepEqual(initialRange(120), { start: 0, end: 120 });
+});
+void test('range validation rejects invalid boundaries and allows the full recording', () => {
+  assert.doesNotThrow(() => validateRange(0, 999.027, 999.027));
+  for (const [start, end] of [
+    [-1, 60],
+    [60, 60],
+    [90, 60],
+    [0, 1000],
+    [NaN, 60],
+  ])
+    assert.throws(() => validateRange(start, end, 999.027));
 });

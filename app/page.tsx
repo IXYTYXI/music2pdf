@@ -28,10 +28,19 @@ import { Progress } from '@/components/ui/progress';
 import { StaffScore, NumberedScore } from '@/components/score-view';
 import { NoteEditor } from '@/components/note-editor';
 import {
+  MAX_AUDIO_SECONDS,
+  MAX_AUDIO_BYTES,
+  initialRange,
+  validateRange,
   recommendedParallelism,
   transcribeAudio,
 } from '@/lib/music/long-audio';
-import { decodeFile, makeDemo, synthesize } from '@/lib/music/audio';
+import {
+  decodeFile,
+  inspectFile,
+  makeDemo,
+  synthesize,
+} from '@/lib/music/audio';
 import { download, toMidi } from '@/lib/music/export';
 import {
   estimateTempo,
@@ -45,7 +54,9 @@ const formatTime = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 export default function Home() {
   const [file, setFile] = useState<File | null>(null),
-    [samples, setSamples] = useState<Float32Array | null>(null),
+    [rangeStart, setRangeStart] = useState(0),
+    [rangeEnd, setRangeEnd] = useState(0),
+    [scoreRange, setScoreRange] = useState(''),
     [wave, setWave] = useState<number[]>([]),
     [duration, setDuration] = useState(0),
     [audioURL, setAudioURL] = useState('');
@@ -113,7 +124,7 @@ export default function Home() {
     setStatus('loading');
     setNotes([]);
     setOriginal([]);
-    setSamples(null);
+    setScoreRange('');
     setFile(next);
     setIsDemo(false);
     setScoreReady(false);
@@ -122,11 +133,12 @@ export default function Home() {
     setDuration(0);
     setTitle(next.name.replace(/\.[^.]+$/, ''));
     try {
-      const decoded = await decodeFile(next);
+      const sourceDuration = await inspectFile(next);
       if (run !== generation.current) return;
-      setSamples(decoded.samples);
-      setDuration(decoded.duration);
-      setWave(decoded.wave);
+      setDuration(sourceDuration);
+      const range = initialRange(sourceDuration);
+      setRangeStart(range.start);
+      setRangeEnd(range.end);
       setAudioURL(URL.createObjectURL(next));
       setStatus('ready');
     } catch (e) {
@@ -158,10 +170,16 @@ export default function Home() {
     setDuration(17);
     setWave([]);
     setFile(null);
-    setSamples(null);
+    setScoreRange('');
   }
   async function transcribe() {
-    if (!samples) return;
+    if (!file) return;
+    try {
+      validateRange(rangeStart, rangeEnd, duration);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : '时间范围无效');
+      return;
+    }
     killWorker();
     const run = ++generation.current;
     const controller = new AbortController();
@@ -177,8 +195,17 @@ export default function Home() {
     setOriginal([]);
     setScoreReady(false);
     try {
+      setLabel('正在解码原录音并选取片段，长录音可能需要一些时间…');
+      const decoded = await decodeFile(
+        file,
+        rangeStart,
+        rangeEnd,
+        controller.signal,
+      );
+      if (run !== generation.current || controller.signal.aborted) return;
+      const selectedLabel = `${formatTime(rangeStart)}–${formatTime(rangeEnd)}`;
       const result = await transcribeAudio(
-        samples,
+        decoded.samples,
         window.location.origin,
         (p, message) => {
           if (run === generation.current) {
@@ -196,6 +223,7 @@ export default function Home() {
         setError('没有识别到清晰音符。请尝试音量更大、背景更安静的钢琴录音。');
         return;
       }
+      setScoreRange(selectedLabel);
       setNotes(result);
       setOriginal(result);
       setBpm(estimateTempo(result));
@@ -213,8 +241,8 @@ export default function Home() {
   function cancel() {
     generation.current++;
     killWorker();
-    if (!samples) setFile(null);
-    setStatus(samples ? 'ready' : 'empty');
+    if (!duration) setFile(null);
+    setStatus(file && duration ? 'ready' : 'empty');
     setLabel('');
   }
   function listen() {
@@ -332,7 +360,8 @@ export default function Home() {
               </button>
               <small>
                 MP3 / WAV / FLAC / M4A 等<br />
-                最长 10 分钟 · 最大 100 MB
+                可导入最长 {MAX_AUDIO_SECONDS / 60} 分钟 · 最大{' '}
+                {MAX_AUDIO_BYTES / 1024 / 1024} MB
               </small>
             </div>
             {audioURL && (
@@ -354,6 +383,73 @@ export default function Home() {
                 {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- User-supplied instrumental audio; the score is its accessible textual counterpart. */}
                 <audio ref={audioRef} controls src={audioURL} onPlay={stop} />
               </div>
+            )}
+            {file && duration > 0 && (
+              <fieldset className="range-settings" disabled={busy}>
+                <legend>识别范围</legend>
+                <div className="range-inputs">
+                  <label>
+                    开始（秒）
+                    <input
+                      type="number"
+                      min="0"
+                      max={duration}
+                      step="0.1"
+                      value={Number.isFinite(rangeStart) ? rangeStart : ''}
+                      onChange={(e) => setRangeStart(e.target.valueAsNumber)}
+                    />
+                  </label>
+                  <label>
+                    结束（秒）
+                    <input
+                      type="number"
+                      min="0"
+                      max={duration}
+                      step="0.1"
+                      value={Number.isFinite(rangeEnd) ? rangeEnd : ''}
+                      onChange={(e) => setRangeEnd(e.target.valueAsNumber)}
+                    />
+                  </label>
+                </div>
+                <div className="range-actions">
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setRangeStart(0);
+                      setRangeEnd(duration);
+                    }}
+                  >
+                    整首录音
+                  </button>
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      const start = Math.min(
+                        audioRef.current?.currentTime ?? 0,
+                        Math.max(0, duration - 1),
+                      );
+                      setRangeStart(start);
+                      setRangeEnd(Math.min(duration, start + 60));
+                    }}
+                  >
+                    从试听位置选 1 分钟
+                  </button>
+                </div>
+                <small>
+                  {Number.isFinite(rangeStart) &&
+                  Number.isFinite(rangeEnd) &&
+                  rangeEnd > rangeStart
+                    ? `${formatTime(rangeStart)}–${formatTime(rangeEnd)} · 约 ${Math.ceil((rangeEnd - rangeStart) / 30)} 段`
+                    : '请调整起止时间'}
+                  。乐谱从所选片段起点开始计时。
+                </small>
+                {duration > 600 && (
+                  <p>
+                    长录音默认先试识别 1
+                    分钟；可选择整首。整首处理与排版耗时较长，建议先确认片段效果。
+                  </p>
+                )}
+              </fieldset>
             )}
             {!busy && (
               <button
@@ -391,7 +487,7 @@ export default function Home() {
               </Select>
               <small>自动使用 1–2 路。并行越多，内存占用越高。</small>
             </div>
-            {(status === 'ready' || (hasScore && samples)) && (
+            {(status === 'ready' || (hasScore && file)) && (
               <button
                 className="primary transcribe-button"
                 onClick={() => void transcribe()}
@@ -439,7 +535,7 @@ export default function Home() {
               </div>
               <span className="muted">
                 {hasScore
-                  ? `${notes.length} 个音符 · ${isDemo ? '示例乐谱' : '识别初稿'}`
+                  ? `${notes.length} 个音符 · ${isDemo ? '示例乐谱' : '识别初稿'}${scoreRange ? ` · 原音 ${scoreRange}` : ''}`
                   : '等待音频'}
               </span>
             </div>

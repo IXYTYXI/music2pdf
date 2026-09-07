@@ -36,14 +36,18 @@ export function validateAudio(name: string, size: number, duration?: number) {
     throw new Error('请选择 WAV、MP3、FLAC、M4A 或 OGG 音频文件。');
   if (size <= 0) throw new Error('这个文件是空的，请重新选择。');
   if (size > MAX_AUDIO_BYTES)
-    throw new Error('文件超过 100 MB，请先截取一段音频。');
+    throw new Error(
+      `文件超过 ${MAX_AUDIO_BYTES / 1024 / 1024} MB，请压缩或截取后导入。`,
+    );
   if (
     duration !== undefined &&
     (!Number.isFinite(duration) ||
       duration <= 0 ||
       duration > MAX_AUDIO_SECONDS)
   )
-    throw new Error('当前支持最长 10 分钟，请截取片段后重试。');
+    throw new Error(
+      `录音时长无效或超过 ${MAX_AUDIO_SECONDS / 60} 分钟，请检查文件或分段导入。`,
+    );
 }
 export function quantizeNotes(notes: Note[], bpm: number): QuantizedNote[] {
   const rate = Math.min(240, Math.max(30, bpm)) / 15;

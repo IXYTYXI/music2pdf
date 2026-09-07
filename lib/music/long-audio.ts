@@ -1,7 +1,21 @@
 import type { Note } from './score';
-export const MAX_AUDIO_SECONDS = 600;
-export const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
+export const MAX_AUDIO_SECONDS = 3600;
+export const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
 const SAMPLE_RATE = 22050;
+export function initialRange(duration: number) {
+  return { start: 0, end: duration > 600 ? 60 : duration };
+}
+export function validateRange(start: number, end: number, duration: number) {
+  if (
+    ![start, end, duration].every(Number.isFinite) ||
+    start < 0 ||
+    end <= start ||
+    end > duration
+  )
+    throw new Error(
+      '请选择有效的起止时间：结束时间须晚于开始时间，且不超过录音长度。',
+    );
+}
 export interface AudioChunk {
   start: number;
   end: number;

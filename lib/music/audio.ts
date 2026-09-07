@@ -1,6 +1,65 @@
 import type { Note } from './score';
 import { validateAudio } from './score';
-export async function decodeFile(file: File) {
+import { validateRange } from './long-audio';
+export function inspectFile(file: File): Promise<number> {
+  validateAudio(file.name, file.size);
+  return new Promise((resolve, reject) => {
+    const audio = document.createElement('audio');
+    const url = URL.createObjectURL(file);
+    const cleanup = () => {
+      clearTimeout(timer);
+      audio.onloadedmetadata = null;
+      audio.onerror = null;
+      audio.removeAttribute('src');
+      audio.load();
+      URL.revokeObjectURL(url);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('读取音频时长超时，请转换为 MP3 或 WAV 后重试。'));
+    }, 30000);
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      const duration = audio.duration;
+      cleanup();
+      try {
+        validateAudio(file.name, file.size, duration);
+        resolve(duration);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    audio.onerror = () => {
+      cleanup();
+      reject(new Error('浏览器无法读取这个音频，请转换为 MP3 或 WAV 后重试。'));
+    };
+    audio.src = url;
+  });
+}
+let decodeQueue: Promise<void> = Promise.resolve();
+export function decodeFile(
+  file: File,
+  start = 0,
+  end?: number,
+  signal?: AbortSignal,
+) {
+  // Browser decoders cannot be interrupted; serialize retries to avoid overlapping full-file buffers.
+  const result = decodeQueue.then(() =>
+    decodeSelectedFile(file, start, end, signal),
+  );
+  decodeQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+async function decodeSelectedFile(
+  file: File,
+  start: number,
+  end?: number,
+  signal?: AbortSignal,
+) {
+  signal?.throwIfAborted();
   validateAudio(file.name, file.size);
   const ctx = new AudioContext();
   let decoded: AudioBuffer;
@@ -11,17 +70,22 @@ export async function decodeFile(file: File) {
   } finally {
     await ctx.close();
   }
+  signal?.throwIfAborted();
   validateAudio(file.name, file.size, decoded.duration);
+  const stop = Math.min(end ?? decoded.duration, decoded.duration);
+  validateRange(start, stop, decoded.duration);
+  const selectedDuration = stop - start;
   const offline = new OfflineAudioContext(
     1,
-    Math.ceil(decoded.duration * 22050),
+    Math.ceil(selectedDuration * 22050),
     22050,
   );
   const source = offline.createBufferSource();
   source.buffer = decoded;
   source.connect(offline.destination);
-  source.start();
+  source.start(0, start, selectedDuration);
   const mono = await offline.startRendering();
+  signal?.throwIfAborted();
   const samples = mono.getChannelData(0),
     wave: number[] = [];
   const stride = Math.max(1, Math.floor(samples.length / 100));
@@ -35,7 +99,7 @@ export async function decodeFile(file: File) {
       peak = Math.max(peak, Math.abs(samples[j]));
     wave.push(peak);
   }
-  return { samples, duration: decoded.duration, wave };
+  return { samples, duration: selectedDuration, wave };
 }
 export function synthesize(
   notes: Note[],

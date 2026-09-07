@@ -929,3 +929,45 @@ footer {
   color: var(--soft);
   line-height: 1.7;
 }
+
+.range-settings {
+  border: 1px solid var(--border, #dfe5ee);
+  border-radius: 12px;
+  margin: 18px 0;
+  padding: 14px;
+  min-width: 0;
+}
+.range-settings legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+.range-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.range-inputs label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.range-inputs input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: white;
+}
+.range-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+.range-settings small,
+.range-settings p {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.7;
+}
