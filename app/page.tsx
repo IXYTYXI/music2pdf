@@ -27,6 +27,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { StaffScore, NumberedScore } from '@/components/score-view';
 import { NoteEditor } from '@/components/note-editor';
+import { transcribeAudio } from '@/lib/music/long-audio';
 import { decodeFile, makeDemo, synthesize } from '@/lib/music/audio';
 import { download, toMidi } from '@/lib/music/export';
 import {
@@ -63,10 +64,9 @@ export default function Home() {
     [scoreReady, setScoreReady] = useState(false),
     [drag, setDrag] = useState(false);
   const picker = useRef<HTMLInputElement>(null),
-    worker = useRef<Worker | null>(null),
+    task = useRef<AbortController | null>(null),
     stopAudio = useRef<(() => void) | null>(null),
     generation = useRef(0),
-    timeout = useRef<ReturnType<typeof setTimeout> | null>(null),
     audioRef = useRef<HTMLAudioElement>(null);
   const busy = status === 'loading' || status === 'working';
   const options = useMemo(
@@ -84,15 +84,13 @@ export default function Home() {
     setPlaying(false);
   }
   function killWorker() {
-    worker.current?.terminate();
-    worker.current = null;
-    if (timeout.current) clearTimeout(timeout.current);
+    task.current?.abort();
+    task.current = null;
   }
   useEffect(
     () => () => {
-      worker.current?.terminate();
+      task.current?.abort();
       stopAudio.current?.();
-      if (timeout.current) clearTimeout(timeout.current);
     },
     [],
   );
@@ -158,8 +156,12 @@ export default function Home() {
     setFile(null);
     setSamples(null);
   }
-  function transcribe() {
+  async function transcribe() {
     if (!samples) return;
+    killWorker();
+    const run = ++generation.current;
+    const controller = new AbortController();
+    task.current = controller;
     stop();
     audioRef.current?.pause();
     setError('');
@@ -171,65 +173,35 @@ export default function Home() {
     setOriginal([]);
     setScoreReady(false);
     try {
-      const w = new Worker(
-        new URL('../lib/music/transcribe.worker.ts', import.meta.url),
-        { type: 'module' },
-      );
-      worker.current = w;
-      timeout.current = setTimeout(() => {
-        killWorker();
-        setStatus('ready');
-        setError('本次识别超过 5 分钟。请缩短音频片段后重试。');
-      }, 300000);
-      w.onmessage = (
-        e: MessageEvent<{
-          type: string;
-          progress: number;
-          label: string;
-          notes: Note[];
-          message: string;
-        }>,
-      ) => {
-        const data = e.data;
-        if (data.type === 'progress') {
-          setProgress(data.progress);
-          setLabel(data.label);
-        } else if (data.type === 'complete') {
-          killWorker();
-          if (!data.notes.length) {
-            setStatus('ready');
-            setError(
-              '没有识别到清晰音符。请尝试音量更大、背景更安静的钢琴片段。',
-            );
-            return;
+      const result = await transcribeAudio(
+        samples,
+        window.location.origin,
+        (p, message) => {
+          if (run === generation.current) {
+            setProgress(p);
+            setLabel(message);
           }
-          setNotes(data.notes);
-          setOriginal(data.notes);
-          setBpm(estimateTempo(data.notes));
-          setProgress(100);
-          setStatus('done');
-          setTab('staff');
-        } else if (data.type === 'error') {
-          killWorker();
-          setStatus('ready');
-          setError(`识别未完成：${data.message}。可以尝试缩短音频后重试。`);
-        }
-      };
-      w.onerror = () => {
-        killWorker();
+        },
+        controller.signal,
+      );
+      if (run !== generation.current) return;
+      if (!result.length) {
         setStatus('ready');
-        setError(
-          '识别引擎加载失败，请检查网络后重试，或使用最新版 Chrome / Edge。',
-        );
-      };
-      const copy = samples.slice();
-      w.postMessage({ audio: copy, origin: window.location.origin }, [
-        copy.buffer,
-      ]);
-    } catch {
-      killWorker();
+        setError('没有识别到清晰音符。请尝试音量更大、背景更安静的钢琴录音。');
+        return;
+      }
+      setNotes(result);
+      setOriginal(result);
+      setBpm(estimateTempo(result));
+      setProgress(100);
+      setStatus('done');
+      setTab('staff');
+    } catch (error) {
+      if (run !== generation.current || controller.signal.aborted) return;
       setStatus('ready');
-      setError('当前浏览器无法启动识别引擎，请使用最新版 Chrome / Edge。');
+      setError(error instanceof Error ? error.message : '识别未完成，请重试。');
+    } finally {
+      if (task.current === controller) task.current = null;
     }
   }
   function cancel() {
@@ -354,7 +326,7 @@ export default function Home() {
               </button>
               <small>
                 MP3 / WAV / FLAC / M4A 等<br />
-                最长 2 分钟 · 最大 50 MB
+                最长 10 分钟 · 最大 100 MB
               </small>
             </div>
             {audioURL && (
@@ -397,7 +369,7 @@ export default function Home() {
             {(status === 'ready' || (hasScore && samples)) && (
               <button
                 className="primary transcribe-button"
-                onClick={transcribe}
+                onClick={() => void transcribe()}
               >
                 {' '}
                 {hasScore ? '重新识别' : '开始转谱'} <ArrowRight size={16} />
@@ -412,7 +384,9 @@ export default function Home() {
                 {status === 'working' && (
                   <>
                     <Progress value={progress} aria-label="识别进度" />
-                    <small>{progress}% · 请保持页面打开</small>
+                    <small>
+                      {progress}% · 长音频会自动分段，请保持页面打开
+                    </small>
                   </>
                 )}
                 <button className="text-button" onClick={cancel}>

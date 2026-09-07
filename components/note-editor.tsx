@@ -32,8 +32,8 @@ export function NoteEditor({
       field === 'pitch'
         ? Math.min(108, Math.max(21, Math.round(value)))
         : field === 'start'
-          ? Math.min(120, Math.max(0, value))
-          : Math.min(120, Math.max(0.05, value));
+          ? Math.min(600, Math.max(0, value))
+          : Math.min(600, Math.max(0.05, value));
     onChange(notes.map((n) => (n.id === id ? { ...n, [field]: clamped } : n)));
   }
   return (
@@ -79,7 +79,7 @@ export function NoteEditor({
                   aria-label={`${n.id} 起点`}
                   type="number"
                   min={0}
-                  max={120}
+                  max={600}
                   step={0.01}
                   value={Number(n.start.toFixed(3))}
                   onChange={(e) =>
@@ -92,7 +92,7 @@ export function NoteEditor({
                   aria-label={`${n.id} 时长`}
                   type="number"
                   min={0.05}
-                  max={120}
+                  max={600}
                   step={0.01}
                   value={Number(n.duration.toFixed(3))}
                   onChange={(e) =>

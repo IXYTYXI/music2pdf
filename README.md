@@ -24,8 +24,8 @@ node scripts/check-inference.mjs
 
 ## 使用
 
-1. 选择音频文件或拖放至导入区。支持浏览器可解码的 WAV、MP3、FLAC、M4A、OGG 等；不超过 50 MB / 120 秒。
-2. 点击「开始转谱」。独立 Worker 运行 Basic Pitch，多音识别无需把钢琴先拆成高低频音轨。可取消运行。
+1. 选择音频文件或拖放至导入区。支持浏览器可解码的 WAV、MP3、FLAC、M4A、OGG 等；不超过 100 MB / 600 秒。
+2. 点击「开始转谱」。每 30 秒（前后各含最多 2 秒上下文）使用独立 Worker 运行 Basic Pitch，多音识别无需把钢琴先拆成高低频音轨。可取消运行。
 3. 对照原音调整速度、拍号和调性，切换五线谱、主旋律简谱和音符校正。
 4. 试听为合成音色。可增加、删除音符，修改音高和起止时间，或恢复本次识别结果。
 5. 导出完整音符的 MIDI / MusicXML；在五线谱或简谱页面使用「打印 / PDF」，在浏览器打印窗口中选择另存为 PDF。
@@ -45,7 +45,8 @@ node scripts/check-inference.mjs
 ## 代码结构
 
 - `app/page.tsx`：导入、任务状态、工作台和导出交互。
-- `lib/music/transcribe.worker.ts`：独立模型推理，WASM 后端不可用时回退 CPU；每次完成或取消销毁 Worker，释放模型内存。
+- `lib/music/long-audio.ts`：顺序分段、边界音符去重与延音衔接、总进度及取消；完整音频仍在浏览器内解码，内存占用随音频长度增加。
+- `lib/music/transcribe.worker.ts`：独立模型推理，WASM 后端不可用时回退 CPU；每段完成或取消销毁 Worker，释放模型内存。
 - `lib/music/score.ts`：统一音符类型、时值量化、多声部 MusicXML、旋律候选和简谱音高。
 - `lib/music/audio.ts`：解码、重采样、试听及原创示例。
 - `lib/music/export.ts`：MIDI 与下载。

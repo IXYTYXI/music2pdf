@@ -92,8 +92,8 @@ void test('numbered notation represents key, accidentals and octaves', () => {
 });
 void test('audio guard rejects empty, oversized, long, and unsupported files', () => {
   assert.throws(() => validateAudio('x.wav', 0));
-  assert.throws(() => validateAudio('x.wav', 51 * 1024 * 1024));
+  assert.throws(() => validateAudio('x.wav', 101 * 1024 * 1024));
   assert.throws(() => validateAudio('x.exe', 100));
-  assert.throws(() => validateAudio('x.wav', 100, 121));
+  assert.throws(() => validateAudio('x.wav', 100, 601));
   assert.doesNotThrow(() => validateAudio('x.MP3', 100, 20));
 });
