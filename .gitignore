@@ -48,3 +48,11 @@ next-env.d.ts
 /backend/data/
 __pycache__/
 *.pyc
+
+# Local collector credentials and queues
+*imslp*cookies*.txt
+*imslp*permission*.json
+.imslp/
+
+# Isolated feature worktrees
+/.worktrees/

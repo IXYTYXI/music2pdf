@@ -70,3 +70,7 @@ Basic Pitch 模型和实现由 Spotify 提供，Apache-2.0；TensorFlow.js 为 A
 ## 多版本训练数据准备
 
 新增 [本地数据工作台](backend/DATASET.md)：按作品文件夹收集多份录音和乐谱，试听/预览、检查缺失及重复内容，以固定种子导出训练/验证/测试 JSONL 索引。运行 `backend/start-dataset.sh`（Mac/Linux）或 `backend/start-dataset.ps1`（Windows），访问本机 8766 端口。无需 GPU；尚未进行识谱、对齐或模型训练。
+
+## IMSLP 自动采集
+
+新增 [IMSLP 自动采集器](backend/IMSLP.md)：无需作品链接，从官方目录分页发现作品，按作曲家/乐器筛选，保存乐谱与录音信息，并将成功下载的文件直接放入数据工作台目录。支持持久队列、限速、失败重试、去重和文件校验。默认尝试正常下载入口，robots.txt 严格模式可通过 --respect-robots 开启；保留限速、重试和文件许可信息。
