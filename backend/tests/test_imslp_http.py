@@ -18,6 +18,49 @@ class Response:
 
 class HTTPTests(unittest.TestCase):
     def setUp(self): self.http = HTTP(respect_robots=True)
+    def test_utf8_location_header_is_decoded_before_following(self):
+        http = HTTP()
+        location = 'https://ks15.imslp.org/files/Pièces.pdf'
+        header = location.encode('utf-8').decode('latin-1')
+        with patch.object(http, '_raw', side_effect=[Response(status=302, headers={'Location': header}), Response(b'%PDF-1.7')]) as raw:
+            http.get('https://imslp.org/wiki/Special:ImagefromIndex/12')
+            self.assertEqual(raw.call_args.args[0], location)
+
+    def test_regional_mirror_confirmation_follows_matching_file(self):
+        http = HTTP()
+        page = Response(b'<a href="/files/score.pdf">I understand, continue</a>',
+                        headers={'Content-Type': 'text/html'}, url='https://imslp.eu/linkhandler.php?path=/score.pdf')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(http, 'get', side_effect=[page, Response(b'%PDF-1.7')]) as get:
+            http.download({'id':'12','url':page.url,'extension':'.pdf'}, Path(tmp)/'score.pdf')
+            self.assertEqual(get.call_args.args[0], 'https://imslp.eu/files/score.pdf')
+
+    def test_waiting_page_can_point_to_mirror_query_path(self):
+        http = HTTP()
+        url = 'https://petruccimusiclibrary.ca/linkhandler.php?path=/files/score.mp3'
+        page = Response(('<script>var msg={"js-a4":"15"};</script><span id="sm_dl_wait" data-id="'+url+'"></span>').encode(), headers={'Content-Type':'text/html'})
+        with tempfile.TemporaryDirectory() as tmp, patch.object(http,'get',side_effect=[page,Response(b'ID3sample')]) as get, patch('imslp_http.time.sleep') as sleep:
+            http.download({'id':'12','url':'https://imslp.org/wiki/Special:ImagefromIndex/12','extension':'.mp3'},Path(tmp)/'score.mp3')
+            self.assertEqual(get.call_args.args[0], url)
+            sleep.assert_called_once_with(15)
+
+    def test_known_petrucci_mirrors_are_allowed_but_lookalikes_are_not(self):
+        for host in ('www.petruccilibrary.us', 'petruccilibrary.ca'):
+            HTTP().validate_url('https://'+host+'/linkhandler.php?path=/score.pdf')
+        with self.assertRaises(AccessBlocked): HTTP().validate_url('https://petruccilibrary.us.evil.example/score.pdf')
+
+    def test_mirror_confirmation_rejects_unrelated_file(self):
+        page = Response(b'<a href="/files/other.pdf">I understand, continue</a>',
+                        headers={'Content-Type': 'text/html'}, url='https://imslp.eu/linkhandler.php?path=/score.pdf')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(HTTP, 'get', return_value=page):
+            with self.assertRaises(AccessBlocked):
+                HTTP().download({'id':'12','url':page.url,'extension':'.pdf'}, Path(tmp)/'score.pdf')
+
+    def test_waiting_query_path_rejects_wrong_media_type(self):
+        page = Response(b'<script>var msg={"js-a4":"15"};</script><span id="sm_dl_wait" data-id="https://imslp.eu/linkhandler.php?path=/score.mp3"></span>', headers={'Content-Type':'text/html'})
+        with tempfile.TemporaryDirectory() as tmp, patch.object(HTTP, 'get', return_value=page), patch('imslp_http.time.sleep') as sleep:
+            with self.assertRaises(AccessBlocked):
+                HTTP().download({'id':'12','url':page.url,'extension':'.pdf'}, Path(tmp)/'score.pdf')
+            sleep.assert_not_called()
     def test_catalog_json_response_is_decoded(self):
         http = HTTP()
         with patch.object(http, 'get', return_value=Response(b'{"metadata":{"start":2000}}')):

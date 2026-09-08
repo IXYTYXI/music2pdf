@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit, unquote
+from urllib.parse import urljoin, urlsplit, unquote, parse_qs
 from urllib.robotparser import RobotFileParser
 import requests
 from bs4 import BeautifulSoup
@@ -38,9 +38,9 @@ class HTTP:
     def validate_url(self, url):
         parts = urlsplit(url)
         host = parts.hostname or ''
-        allowed = any(host == d or host.endswith('.' + d) for d in ('imslp.org', 'imslp.eu', 'imslp.us', 'petruccimusiclibrary.ca'))
+        allowed = any(host == d or host.endswith('.' + d) for d in ('imslp.org', 'imslp.eu', 'imslp.us', 'petruccimusiclibrary.ca', 'petruccilibrary.ca', 'petruccilibrary.us'))
         if parts.scheme != 'https' or not allowed or parts.username or parts.password or parts.port not in (None, 443):
-            raise AccessBlocked('Unapproved destination; external streaming links are metadata only')
+            raise AccessBlocked('Destination is outside the configured HTTPS mirror allowlist')
 
     def _raw(self, url, delay, method="GET", data=None):
         for attempt in range(3):
@@ -106,6 +106,11 @@ class HTTP:
             if response.is_redirect:
                 location = response.headers.get('Location', '')
                 response.close()
+                # HTTP headers arrive as Latin-1, while IMSLP emits UTF-8 filenames.
+                try:
+                    location = location.encode('latin1').decode('utf-8')
+                except UnicodeError:
+                    pass
                 url = urljoin(url, location)
                 continue
             if response.status_code in (401, 403):
@@ -171,11 +176,30 @@ class HTTP:
                             raise AccessBlocked('Unrecognized download waiting period')
                         target = urljoin(response.url, waiting['data-id'])
                         self.validate_url(target)
-                        if Path(unquote(urlsplit(target).path)).suffix.lower() != asset['extension']:
+                        target_parts = urlsplit(target)
+                        media_path = target_parts.path
+                        if media_path == '/linkhandler.php':
+                            media_path = parse_qs(target_parts.query).get('path', [''])[0]
+                        if Path(unquote(media_path)).suffix.lower() != asset['extension']:
                             raise AccessBlocked('Waiting page has no matching media URL')
                         time.sleep(int(duration[1]))
                         url = target
                         continue
+                    # Regional mirrors show a confirmation for the path in their handler URL.
+                    parts = urlsplit(response.url)
+                    if parts.path == '/linkhandler.php':
+                        self.validate_url(response.url)
+                        media_path = parse_qs(parts.query).get('path', [''])[0]
+                        expected = '/' + media_path.lstrip('/')
+                        expected = expected if expected.startswith('/files/') else '/files' + expected
+                        confirmations = [a for a in page.select('a[href]')
+                                         if a.get_text(' ', strip=True) == 'I understand, continue'
+                                         and urlsplit(urljoin(response.url, a['href'])).netloc == parts.netloc
+                                         and unquote(urlsplit(urljoin(response.url, a['href'])).path) == unquote(expected)
+                                         and Path(unquote(expected)).suffix.lower() == asset['extension']]
+                        if len(confirmations) == 1:
+                            url = urljoin(response.url, confirmations[0]['href'])
+                            continue
                     # Only follow an explicit download anchor; no arbitrary JavaScript execution.
                     links = [a for a in page.select('a[href]') if Path(unquote(urlsplit(a['href']).path)).suffix.lower() == asset['extension'] and ('download' in a.get_text(' ', strip=True).lower() or a.has_attr('download'))]
                     if len(links) != 1:
