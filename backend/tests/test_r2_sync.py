@@ -99,5 +99,31 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(keys, {'imslp/imslp-1/recordings/metadata.json',
                                 'imslp/imslp-1/audio/external-123.mp3'})
 
+    def test_changing_metadata_is_deferred_then_resynced(self):
+        from unittest.mock import patch
+        import json
+        path = self.file('imslp-1/metadata.json', b'{"version":1}')
+        original = self.s3.put_object
+        def change_during_upload(**kwargs):
+            original(**kwargs)
+            replacement = path.with_suffix('.json.tmp')
+            replacement.write_bytes(b'{"version":22}')
+            replacement.replace(path)
+        with patch.object(self.s3, 'put_object', side_effect=change_during_upload):
+            self.assertTrue(self.sync.cycle())
+        checkpoint = json.loads((self.sync.state/'checkpoint.json').read_text())
+        self.assertEqual(len(checkpoint['deferred']), 1)
+        self.assertEqual(checkpoint['failures'], [])
+        self.assertEqual(self.sync.summary()['verified_objects'], 0)
+        self.assertTrue(self.sync.cycle())
+        self.assertEqual(self.sync.summary()['verified_objects'], 1)
+        self.assertEqual(self.s3.objects['imslp/imslp-1/metadata.json'][0], path.read_bytes())
+
+    def test_remote_verification_failure_is_still_a_failure(self):
+        self.file('imslp-1/metadata.json', b'{}')
+        self.s3.corrupt = True
+        self.assertFalse(self.sync.cycle())
+        self.assertEqual(self.sync.summary()['verified_objects'], 0)
+
 if __name__ == '__main__':
     unittest.main()

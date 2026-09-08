@@ -27,6 +27,10 @@ def stamp(path):
     return f'{stat.st_ino}:{stat.st_size}:{stat.st_mtime_ns}'
 
 
+class SourceChanged(ValueError):
+    """The collector published newer content; revisit it on the next pass."""
+
+
 class Syncer:
     def __init__(self, root, client, bucket, prefix):
         self.root = Path(root).resolve()
@@ -39,6 +43,7 @@ class Syncer:
         self.destination = bucket + '/' + self.prefix
         self.queue_stamp = None
         self.validated = set()
+        self.deferred = []
 
     def close(self):
         self.db.close()
@@ -65,7 +70,7 @@ class Syncer:
                 md5.update(chunk)
                 size += len(chunk)
             if stamp(path) != before:
-                raise ValueError('Source changed during hashing; retry next pass')
+                raise SourceChanged('Source changed during hashing; retry next pass')
             checksum = sha.hexdigest()
             remote = self.head(key)
             matches = remote and remote['ContentLength'] == size and remote.get('Metadata', {}).get('sha256') == checksum
@@ -83,7 +88,7 @@ class Syncer:
             if not remote or remote['ContentLength'] != size or remote.get('Metadata', {}).get('sha256') != checksum:
                 raise ValueError('Remote object failed size/SHA-256 metadata verification')
         if stamp(path) != before:
-            raise ValueError('Source changed during upload; retry next pass')
+            raise SourceChanged('Source changed during upload; retry next pass')
         with self.db:
             self.db.execute('INSERT OR REPLACE INTO objects VALUES(?,?,?,?,?)', (self.destination, key, before, checksum, size))
         self.validated.add(key)
@@ -138,6 +143,7 @@ class Syncer:
 
     def cycle(self):
         uploaded, errors = 0, []
+        self.deferred = []
         paths = list(self.inventory())
         snapshot = self.snapshot_queue()
         if snapshot:
@@ -148,6 +154,8 @@ class Syncer:
         for i, (path, key) in enumerate(paths):
             try:
                 uploaded += self.sync_file(path, key)
+            except SourceChanged as exc:
+                self.deferred.append({'key': key, 'code': 'SourceChanged', 'reason': str(exc)})
             except ClientError as exc:
                 code = exc.response.get('Error', {}).get('Code', 'S3Error')
                 errors.append({'key': key, 'code': code})
@@ -155,11 +163,14 @@ class Syncer:
                     self.checkpoint('blocked', failures=errors)
                     return False
             except (BotoCoreError, OSError, ValueError) as exc:
-                errors.append({'key': key, 'code': type(exc).__name__})
+                error = {'key': key, 'code': type(exc).__name__}
+                if isinstance(exc, ValueError): error['reason'] = str(exc)
+                errors.append(error)
             if (i + 1) % 10 == 0:
-                self.checkpoint('uploading', batch_verified=i + 1 - len(errors), batch_total=len(paths), failures=errors)
+                self.checkpoint('uploading', batch_verified=i + 1 - len(errors) - len(self.deferred),
+                                batch_total=len(paths), failures=errors, deferred=self.deferred)
         self.checkpoint('retrying' if errors else 'watching', uploaded_this_pass=uploaded,
-                        batch_total=len(paths), failures=errors)
+                        batch_total=len(paths), failures=errors, deferred=self.deferred)
         return not errors
 
 
@@ -202,7 +213,7 @@ def main():
                 ok = sync.cycle()
                 failures = 0 if ok else failures + 1
                 if not args.watch:
-                    return 0 if ok else 2
+                    return 0 if ok and not sync.deferred else 2
                 if failures >= 3:
                     sync.checkpoint('blocked', reason='Three unsuccessful passes; inspect prior failures and restart')
                     return 2
