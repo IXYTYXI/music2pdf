@@ -74,3 +74,7 @@ python -m unittest discover -s tests -v
 ## 自动发现 IMSLP 资料
 
 可使用 [IMSLP 采集器](IMSLP.md) 从官方目录主动发现作品，不必手动提供链接。将采集器的 `--root` 设为本工作台的数据根目录，成功下载的文件即可直接扫描。作品来源、版本和采集状态保存在各作品目录的 metadata.json；受站点访问限制的项目仅保存元数据，不会被算作已有录音或乐谱。
+
+## 从其他平台补充录音
+
+使用 [录音候选检索](RECORDINGS.md)，根据已有 IMSLP 作品信息在 Internet Archive 与 Wikimedia Commons 搜索音轨，核对版本后下载。候选证据和许可单独保存，不改写 IMSLP 元数据；下载结果兼容本工作台和现有 R2 增量同步。
