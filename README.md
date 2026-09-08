@@ -74,3 +74,7 @@ Basic Pitch 模型和实现由 Spotify 提供，Apache-2.0；TensorFlow.js 为 A
 ## IMSLP 自动采集
 
 新增 [IMSLP 自动采集器](backend/IMSLP.md)：无需作品链接，从官方目录分页发现作品，按作曲家/乐器筛选，保存乐谱与录音信息，并将成功下载的文件直接放入数据工作台目录。支持持久队列、限速、失败重试、去重和文件校验。默认尝试正常下载入口，robots.txt 严格模式可通过 --respect-robots 开启；保留限速、重试和文件许可信息。
+
+## 跨平台补充录音
+
+[录音候选检索](backend/RECORDINGS.md) 支持 Internet Archive、Wikimedia Commons：从本地乐谱说明检索对应作品的录音，展示匹配依据与版本冲突，核对选定后下载并保留来源，自动进入已有 R2 同步目录。

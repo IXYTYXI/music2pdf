@@ -91,5 +91,13 @@ class SyncTests(unittest.TestCase):
             self.sync.sync_file(p, 'imslp/x.pdf')
         self.assertEqual(self.s3.puts, [])
 
+    def test_external_recording_provenance_uses_existing_inventory(self):
+        self.file('imslp-1/recordings/metadata.json', b'{"candidates":[]}')
+        self.file('imslp-1/recordings/private-token.txt', b'private')
+        self.file('imslp-1/audio/external-123.mp3', b'ID3sample')
+        keys = {key for path, key in self.sync.inventory()}
+        self.assertEqual(keys, {'imslp/imslp-1/recordings/metadata.json',
+                                'imslp/imslp-1/audio/external-123.mp3'})
+
 if __name__ == '__main__':
     unittest.main()
