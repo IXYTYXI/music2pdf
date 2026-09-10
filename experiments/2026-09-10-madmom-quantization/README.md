@@ -34,3 +34,20 @@ JSON可直接查看。12份XML已逐项读回，均保留233事件及预期量�
 工具文档：https://github.com/CPJKU/madmom
 
 详细核查：https://guanghe.feishu.cn/docx/ErD1dhteToU1eUxeFuUcO8GtnHc 第8节。
+
+## 受约束的碎片修复（后续实验）
+
+`rhythm_cleanup.py` 替代按中央C分组、统一吞掉半拍空隙的做法：只有显式 `voice_id`、`continuous_to` 和未量化拍位置同时存在，才调整小间隙或重叠。原始间隙上限0.125拍、调整上限一个网格；不同长度的和弦、保持音、明确休止和断奏受到保护。这些阈值是实验参数，不是乐理标准。
+
+当前录音没有上述声部及连接标注，因此**没有自动执行声部缝合**。另一路 `repair_fragments.py` 检查相邻同音高碎片：边界距离不超过30ms，madmom边界附近没有显著新起音，且独立钢琴模型的同音高事件跨越边界，才生成合并候选。缺少起音并不能证明没有重新弹奏；独立模型只支持跨越边界，不证明整个合并时值准确。
+
+整段实测合并18.042秒C5、50.967秒C3两处边界，233事件变为231，其余事件逐项不变。同一 dynamic16 / phase1 设置下休止标记132→130，十六分休止45→45。没有校正音高、声部推断或首小节起点，仍未通过音乐准确性验收，未接入正式产品流程。
+
+```sh
+python3 -m unittest discover -s experiments/2026-09-10-madmom-quantization -p 'test_rhythm_cleanup.py' -v
+.work/amt-comparison/venv/bin/python experiments/2026-09-10-madmom-quantization/repair_fragments.py
+.work/amt-comparison/venv/bin/python experiments/2026-09-10-madmom-quantization/quantize.py --notes .work/rhythm-repair/notes.json --output-dir .work/rhythm-repair/quantized
+node_modules/.bin/tsx experiments/2026-09-10-madmom-quantization/render.mts .work/rhythm-repair/quantized
+```
+
+额外输入为本地 `.work/phrase-model-comparison/notes.json`（独立钢琴模型），以及原实验起音激活数组。原始数据不覆盖，候选和逐项审计写入 `.work/rhythm-repair/`。12项保护测试通过；12份候选XML逐项读回，均保留231事件及预期量化位置。
