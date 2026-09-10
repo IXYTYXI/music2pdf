@@ -97,3 +97,41 @@ void test('audio guard rejects empty, oversized, long, and unsupported files', (
   assert.throws(() => validateAudio('x.wav', 100, 3601));
   assert.doesNotThrow(() => validateAudio('x.MP3', 100, 20));
 });
+
+const scoreOptions = { title: 'Regression', bpm: 120, beats: 4, key: 0 };
+void test('simultaneous equal-length notes form a chord instead of extra voices', () => {
+  const xml = toMusicXML(
+    [n(60, 0, 0.5), n(64, 0, 0.5), n(67, 0, 0.5)],
+    scoreOptions,
+  );
+  assert.equal((xml.match(/<chord\s*\/>/g) || []).length, 2);
+  assert.deepEqual(
+    [...new Set([...xml.matchAll(/<voice>(\d+)<\/voice>/g)].map((m) => m[1]))],
+    ['1', '2'],
+  );
+});
+void test('each pitch in a cross-bar chord keeps its ties', () => {
+  const xml = toMusicXML([n(60, 1.5, 1), n(64, 1.5, 1)], scoreOptions);
+  assert.equal((xml.match(/<chord\s*\/>/g) || []).length, 2);
+  assert.equal((xml.match(/<tie type="start"/g) || []).length, 2);
+  assert.equal((xml.match(/<tie type="stop"/g) || []).length, 2);
+});
+void test('different note lengths and repeated pitches are not collapsed into a chord', () => {
+  for (const notes of [
+    [n(60, 0, 1), n(64, 0, 0.5)],
+    [n(60, 0, 0.5), n(60, 0, 0.5)],
+  ]) {
+    const xml = toMusicXML(notes, scoreOptions);
+    assert.doesNotMatch(xml, /<chord\s*\/>/);
+    assert.equal((xml.match(/<pitch>/g) || []).length, 2);
+  }
+});
+void test('an extra voice does not fill later silent measures with duplicate rests', () => {
+  const xml = toMusicXML(
+    [n(60, 0, 1), n(64, 0.5, 0.25), n(60, 2, 1)],
+    scoreOptions,
+  );
+  const second = xml.split('<measure number="2">')[1];
+  assert.doesNotMatch(second, /<voice>2<\/voice>/);
+  assert.match(second, /<staff>2<\/staff>/);
+});

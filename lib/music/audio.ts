@@ -133,9 +133,15 @@ export function synthesize(
     osc.stop(end + 0.1);
   }
   void ctx.resume();
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    if (ctx.state !== 'closed') void ctx.close();
+  };
   const timer = setTimeout(
     () => {
-      void ctx.close();
+      close();
       onEnd();
     },
     (Math.max(0, ...notes.map((n) => n.start + n.duration)) * ratio + 0.3) *
@@ -143,7 +149,7 @@ export function synthesize(
   );
   return () => {
     clearTimeout(timer);
-    void ctx.close();
+    close();
   };
 }
 export function makeDemo(): { notes: Note[]; blob: Blob } {

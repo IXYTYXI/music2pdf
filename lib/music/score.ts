@@ -93,6 +93,20 @@ export function splitDuration(
     }
   return out;
 }
+export type TimingMode = 'raw' | 'score';
+export function playbackNotes(
+  notes: Note[],
+  bpm: number,
+  mode: TimingMode,
+): Note[] {
+  if (mode === 'raw') return notes.map((n) => ({ ...n }));
+  const rate = Math.min(240, Math.max(30, bpm)) / 15;
+  return quantizeNotes(notes, bpm).map((n) => ({
+    ...n,
+    start: n.tick / rate,
+    duration: n.ticks / rate,
+  }));
+}
 const escapeXML = (s: string) =>
   s.replace(
     /[<>&"']/g,
@@ -121,23 +135,38 @@ export function toMusicXML(notes: Note[], options: ScoreOptions) {
     1,
     Math.ceil(Math.max(0, ...q.map((n) => n.tick + n.ticks)) / bar),
   );
-  // Interval coloring preserves independent note lengths; each staff has at least one voice.
-  const lanes: { staff: number; notes: QuantizedNote[] }[] = [];
+  // Equal-span notes share a chord. Other overlaps retain independent voices.
+  type Chord = { tick: number; ticks: number; notes: QuantizedNote[] };
+  const lanes: { staff: number; primary: boolean; chords: Chord[] }[] = [];
   for (const staff of [1, 2]) {
-    const staffLanes: { staff: number; notes: QuantizedNote[] }[] = [
-      { staff, notes: [] },
-    ];
+    const chords: Chord[] = [];
+    const bySpan = new Map<string, Chord[]>();
     for (const n of q.filter((n) => (n.pitch >= 60 ? 1 : 2) === staff)) {
+      const key = `${n.tick}:${n.ticks}`;
+      const candidates = bySpan.get(key) ?? [];
+      let chord = candidates.find(
+        (c) => !c.notes.some((note) => note.pitch === n.pitch),
+      );
+      if (!chord) {
+        chord = { tick: n.tick, ticks: n.ticks, notes: [] };
+        candidates.push(chord);
+        bySpan.set(key, candidates);
+        chords.push(chord);
+      }
+      chord.notes.push(n);
+    }
+    const staffLanes: typeof lanes = [{ staff, primary: true, chords: [] }];
+    for (const chord of chords) {
       let lane = staffLanes.find(
         (l) =>
-          !l.notes.length ||
-          l.notes.at(-1)!.tick + l.notes.at(-1)!.ticks <= n.tick,
+          !l.chords.length ||
+          l.chords.at(-1)!.tick + l.chords.at(-1)!.ticks <= chord.tick,
       );
       if (!lane) {
-        lane = { staff, notes: [] };
+        lane = { staff, primary: false, chords: [] };
         staffLanes.push(lane);
       }
-      lane.notes.push(n);
+      lane.chords.push(chord);
     }
     lanes.push(...staffLanes);
   }
@@ -150,6 +179,11 @@ export function toMusicXML(notes: Note[], options: ScoreOptions) {
     if (m === 0)
       xml += `<attributes><divisions>4</divisions><key><fifths>${fifths}</fifths></key><time><beats>${options.beats}</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes><direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${options.bpm}</per-minute></metronome></direction-type><sound tempo="${options.bpm}"/></direction>`;
     lanes.forEach((lane, index) => {
+      const active = lane.chords.filter(
+        (n) => n.tick < end && n.tick + n.ticks > start,
+      );
+      // Keep a time-bearing primary voice on each staff, but no empty extra voices.
+      if (!lane.primary && !active.length) return;
       if (index) xml += `<backup><duration>${bar}</duration></backup>`;
       let cursor = start;
       const rest = (ticks: number) =>
@@ -159,9 +193,7 @@ export function toMusicXML(notes: Note[], options: ScoreOptions) {
               `<note><rest/><duration>${d.ticks}</duration><voice>${index + 1}</voice><type>${d.type}</type>${d.dot ? '<dot/>' : ''}<staff>${lane.staff}</staff></note>`,
           )
           .join('');
-      for (const n of lane.notes.filter(
-        (n) => n.tick < end && n.tick + n.ticks > start,
-      )) {
+      for (const n of active) {
         const a = Math.max(start, n.tick),
           b = Math.min(end, n.tick + n.ticks);
         xml += rest(a - cursor);
@@ -169,7 +201,9 @@ export function toMusicXML(notes: Note[], options: ScoreOptions) {
         for (const d of splitDuration(b - a)) {
           const prev = at > n.tick,
             next = at + d.ticks < n.tick + n.ticks;
-          xml += `<note>${pitchXML(n.pitch, options.key)}<duration>${d.ticks}</duration>${prev ? '<tie type="stop"/>' : ''}${next ? '<tie type="start"/>' : ''}<voice>${index + 1}</voice><type>${d.type}</type>${d.dot ? '<dot/>' : ''}<staff>${lane.staff}</staff>${prev || next ? `<notations>${prev ? '<tied type="stop"/>' : ''}${next ? '<tied type="start"/>' : ''}</notations>` : ''}</note>`;
+          n.notes.forEach((note, chordIndex) => {
+            xml += `<note>${chordIndex ? '<chord/>' : ''}${pitchXML(note.pitch, options.key)}<duration>${d.ticks}</duration>${prev ? '<tie type="stop"/>' : ''}${next ? '<tie type="start"/>' : ''}<voice>${index + 1}</voice><type>${d.type}</type>${d.dot ? '<dot/>' : ''}<staff>${lane.staff}</staff>${prev || next ? `<notations>${prev ? '<tied type="stop"/>' : ''}${next ? '<tied type="start"/>' : ''}</notations>` : ''}</note>`;
+          });
           at += d.ticks;
         }
         cursor = b;

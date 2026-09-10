@@ -1,0 +1,50 @@
+[
+  {
+    "label": "A4_first",
+    "time": 14.4866,
+    "nearest_global_onset": 14.46,
+    "distance_ms": 26.599999999998403,
+    "local_max_activation": 0.9996885061264038,
+    "limit": "Global onset cannot identify which pitch or hand was struck. Not permission to merge or delete."
+  },
+  {
+    "label": "A4_fragment",
+    "time": 14.7653,
+    "nearest_global_onset": 14.77,
+    "distance_ms": 4.699999999999704,
+    "local_max_activation": 0.9990567564964294,
+    "limit": "Global onset cannot identify which pitch or hand was struck. Not permission to merge or delete."
+  },
+  {
+    "label": "C5_first",
+    "time": 17.669,
+    "nearest_global_onset": 17.67,
+    "distance_ms": 1.0000000000012221,
+    "local_max_activation": 0.9999121427536011,
+    "limit": "Global onset cannot identify which pitch or hand was struck. Not permission to merge or delete."
+  },
+  {
+    "label": "C5_fragment",
+    "time": 18.0418,
+    "nearest_global_onset": 18.34,
+    "distance_ms": 298.20000000000135,
+    "local_max_activation": 1.186139186870605e-08,
+    "limit": "Global onset cannot identify which pitch or hand was struck. Not permission to merge or delete."
+  },
+  {
+    "label": "E5_repeat_first",
+    "time": 11.2799,
+    "nearest_global_onset": 11.28,
+    "distance_ms": 0.09999999999976694,
+    "local_max_activation": 0.9998615980148315,
+    "limit": "Global onset cannot identify which pitch or hand was struck. Not permission to merge or delete."
+  },
+  {
+    "label": "E5_repeat_second",
+    "time": 11.9182,
+    "nearest_global_onset": 11.92,
+    "distance_ms": 1.7999999999993577,
+    "local_max_activation": 0.9999446868896484,
+    "limit": "Global onset cannot identify which pitch or hand was struck. Not permission to merge or delete."
+  }
+]

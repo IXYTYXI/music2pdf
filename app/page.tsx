@@ -45,9 +45,10 @@ import { download, toMidi } from '@/lib/music/export';
 import {
   estimateTempo,
   KEYS,
-  quantizeNotes,
+  playbackNotes,
   toMusicXML,
   type Note,
+  type TimingMode,
 } from '@/lib/music/score';
 
 const formatTime = (seconds: number) =>
@@ -73,7 +74,7 @@ export default function Home() {
     [label, setLabel] = useState(''),
     [error, setError] = useState(''),
     [tab, setTab] = useState('staff'),
-    [playing, setPlaying] = useState(false),
+    [playing, setPlaying] = useState<TimingMode | null>(null),
     [isDemo, setIsDemo] = useState(false),
     [parallel, setParallel] = useState('auto'),
     [scoreReady, setScoreReady] = useState(false),
@@ -96,7 +97,7 @@ export default function Home() {
   function stop() {
     stopAudio.current?.();
     stopAudio.current = null;
-    setPlaying(false);
+    setPlaying(null);
   }
   function killWorker() {
     task.current?.abort();
@@ -245,25 +246,22 @@ export default function Home() {
     setStatus(file && duration ? 'ready' : 'empty');
     setLabel('');
   }
-  function listen() {
-    if (playing) {
+  function listen(mode: TimingMode) {
+    if (playing === mode) {
       stop();
       return;
     }
+    stop();
     audioRef.current?.pause();
-    const q = quantizeNotes(notes, bpm).map((n) => ({
-      ...n,
-      start: (n.tick * 15) / bpm,
-      duration: (n.ticks * 15) / bpm,
-    }));
-    stopAudio.current = synthesize(q, bpm, bpm, () => setPlaying(false));
-    setPlaying(true);
+    const q = playbackNotes(notes, bpm, mode);
+    stopAudio.current = synthesize(q, bpm, bpm, () => setPlaying(null));
+    setPlaying(mode);
   }
   function changeNotes(n: Note[]) {
     stop();
     setNotes(n);
   }
-  function exportFile(kind: 'xml' | 'midi') {
+  function exportFile(kind: 'xml' | 'midi' | 'raw-midi') {
     try {
       if (kind === 'xml')
         download(
@@ -272,8 +270,16 @@ export default function Home() {
           `${title}.musicxml`,
         );
       else {
-        const data = toMidi(notes, options);
-        download(new Uint8Array(data).buffer, 'audio/midi', `${title}.mid`);
+        const data = toMidi(
+          notes,
+          options,
+          kind === 'raw-midi' ? 'raw' : 'score',
+        );
+        download(
+          new Uint8Array(data).buffer,
+          'audio/midi',
+          `${title}-${kind === 'raw-midi' ? '原始时间' : '乐谱节奏'}.mid`,
+        );
       }
     } catch {
       setError('导出失败，请检查音符数据后重试。');
@@ -648,11 +654,27 @@ export default function Home() {
                   </Tabs>
                   <button
                     className="secondary listen"
-                    onClick={listen}
+                    onClick={() => listen('raw')}
                     disabled={!notes.length}
                   >
-                    {playing ? <Square size={14} /> : <Play size={14} />}{' '}
-                    {playing ? '停止试听' : '试听乐谱'}
+                    {playing === 'raw' ? (
+                      <Square size={14} />
+                    ) : (
+                      <Play size={14} />
+                    )}{' '}
+                    {playing === 'raw' ? '停止试听' : '试听音符（原始时间）'}
+                  </button>
+                  <button
+                    className="secondary listen"
+                    onClick={() => listen('score')}
+                    disabled={!notes.length}
+                  >
+                    {playing === 'score' ? (
+                      <Square size={14} />
+                    ) : (
+                      <Play size={14} />
+                    )}{' '}
+                    {playing === 'score' ? '停止试听' : '试听乐谱节奏'}
                   </button>
                 </div>
                 <div className="score-paper">
@@ -697,7 +719,14 @@ export default function Home() {
                       disabled={!notes.length}
                       onClick={() => exportFile('midi')}
                     >
-                      MIDI
+                      乐谱 MIDI
+                    </button>
+                    <button
+                      className="secondary"
+                      disabled={!notes.length}
+                      onClick={() => exportFile('raw-midi')}
+                    >
+                      原始时间 MIDI
                     </button>
                     <button
                       className="primary"
@@ -717,7 +746,7 @@ export default function Home() {
                 </div>
                 <p className="export-hint">
                   PDF：在打印窗口中选择「另存为 PDF」。MIDI 与 MusicXML
-                  导出全部音符；试听使用合成音色。
+                  导出全部音符。原始时间保留当前音符的识别时间，乐谱节奏按网格量化；试听均使用合成音色。
                 </p>
               </>
             )}

@@ -1,0 +1,98 @@
+[
+  {
+    "case": "fixed120",
+    "phase": 0,
+    "rests": 185,
+    "sixteenthRests": 74,
+    "shortNotes": 30,
+    "measures": 32
+  },
+  {
+    "case": "fixed120",
+    "phase": 1,
+    "rests": 190,
+    "sixteenthRests": 81,
+    "shortNotes": 30,
+    "measures": 32
+  },
+  {
+    "case": "fixed120",
+    "phase": 2,
+    "rests": 183,
+    "sixteenthRests": 79,
+    "shortNotes": 30,
+    "measures": 32
+  },
+  {
+    "case": "fixed94",
+    "phase": 0,
+    "rests": 151,
+    "sixteenthRests": 68,
+    "shortNotes": 48,
+    "measures": 25
+  },
+  {
+    "case": "fixed94",
+    "phase": 1,
+    "rests": 156,
+    "sixteenthRests": 60,
+    "shortNotes": 48,
+    "measures": 25
+  },
+  {
+    "case": "fixed94",
+    "phase": 2,
+    "rests": 163,
+    "sixteenthRests": 69,
+    "shortNotes": 48,
+    "measures": 26
+  },
+  {
+    "case": "dynamic16",
+    "phase": 0,
+    "rests": 124,
+    "sixteenthRests": 42,
+    "shortNotes": 40,
+    "measures": 25
+  },
+  {
+    "case": "dynamic16",
+    "phase": 1,
+    "rests": 132,
+    "sixteenthRests": 45,
+    "shortNotes": 40,
+    "measures": 25
+  },
+  {
+    "case": "dynamic16",
+    "phase": 2,
+    "rests": 136,
+    "sixteenthRests": 43,
+    "shortNotes": 40,
+    "measures": 25
+  },
+  {
+    "case": "dynamic8",
+    "phase": 0,
+    "rests": 81,
+    "sixteenthRests": 0,
+    "shortNotes": 0,
+    "measures": 25
+  },
+  {
+    "case": "dynamic8",
+    "phase": 1,
+    "rests": 78,
+    "sixteenthRests": 0,
+    "shortNotes": 0,
+    "measures": 25
+  },
+  {
+    "case": "dynamic8",
+    "phase": 2,
+    "rests": 84,
+    "sixteenthRests": 0,
+    "shortNotes": 0,
+    "measures": 25
+  }
+]

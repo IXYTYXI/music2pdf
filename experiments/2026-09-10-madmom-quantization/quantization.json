@@ -1,0 +1,56 @@
+[
+  {
+    "case": "fixed120",
+    "events": 233,
+    "onset_median_shift_ms": 28.200453514742208,
+    "onset_p95_shift_ms": 57.691156462581716,
+    "onsets_moved_over_80ms": 0,
+    "duration_p95_change_ms": 95.58956916099852,
+    "same_pitch_onset_collisions": [],
+    "limit": "Grid origin is first detected beat only, NOT an inferred first downbeat. Meter/phase not selected by this comparison."
+  },
+  {
+    "case": "fixed94",
+    "events": 233,
+    "onset_median_shift_ms": 28.360090703060337,
+    "onset_p95_shift_ms": 72.6524263038083,
+    "onsets_moved_over_80ms": 0,
+    "duration_p95_change_ms": 99.4104308390007,
+    "same_pitch_onset_collisions": [
+      [
+        "chunk-0-66",
+        "chunk-0-65"
+      ]
+    ],
+    "limit": "Grid origin is first detected beat only, NOT an inferred first downbeat. Meter/phase not selected by this comparison."
+  },
+  {
+    "case": "dynamic16",
+    "events": 233,
+    "onset_median_shift_ms": 12.116553287981446,
+    "onset_p95_shift_ms": 37.90748299319836,
+    "onsets_moved_over_80ms": 1,
+    "duration_p95_change_ms": 86.73242630385364,
+    "same_pitch_onset_collisions": [],
+    "limit": "Grid origin is first detected beat only, NOT an inferred first downbeat. Meter/phase not selected by this comparison."
+  },
+  {
+    "case": "dynamic8",
+    "events": 233,
+    "onset_median_shift_ms": 12.116553287981446,
+    "onset_p95_shift_ms": 45.271473922903,
+    "onsets_moved_over_80ms": 7,
+    "duration_p95_change_ms": 179.10095238095636,
+    "same_pitch_onset_collisions": [
+      [
+        "chunk-0-66",
+        "chunk-0-65"
+      ],
+      [
+        "chunk-30-232",
+        "chunk-30-165"
+      ]
+    ],
+    "limit": "Grid origin is first detected beat only, NOT an inferred first downbeat. Meter/phase not selected by this comparison."
+  }
+]

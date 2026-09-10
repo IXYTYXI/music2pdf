@@ -605,6 +605,7 @@ footer {
 .view-controls {
   padding: 14px 24px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
@@ -740,6 +741,7 @@ footer {
 }
 .export-bar > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .export-bar .primary {

@@ -25,3 +25,25 @@ void test('exported MIDI round-trips simultaneous notes, tempo, and time signatu
   assert.equal(midi.tracks[0].notes[0].time, 0.5);
   assert.equal(midi.tracks[0].notes[0].duration, 1);
 });
+
+void test('raw MIDI retains unquantized seconds and repeated notes regardless of score BPM', () => {
+  const notes = [0.337, 0.491].map((start, i) => ({
+    id: String(i),
+    pitch: 64,
+    start,
+    duration: 0.083,
+    velocity: 0.7,
+    track: 'piano',
+  }));
+  for (const bpm of [75, 140]) {
+    const midi = new Midi(
+      toMidi(notes, { title: 'Raw', bpm, beats: 3, key: 0 }, 'raw'),
+    );
+    assert.equal(midi.tracks[0].notes.length, 2);
+    midi.tracks[0].notes.forEach((note, i) => {
+      assert.ok(Math.abs(note.time - notes[i].start) < 0.0011);
+      assert.ok(Math.abs(note.duration - notes[i].duration) < 0.0011);
+    });
+    assert.equal(midi.header.timeSignatures.length, 0);
+  }
+});
