@@ -36,6 +36,7 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/.work/
 
 # Generated model / engine assets (copied by postinstall)
 /public/model/*.bin

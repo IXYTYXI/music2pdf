@@ -1,0 +1,126 @@
+{
+  "rows": [
+    {
+      "label": "中央C第一处",
+      "time": 4.4,
+      "raw": [
+        {
+          "onset_time": 4.401486396789551,
+          "offset_time": 4.539999961853027,
+          "midi_note": 48,
+          "velocity": 45
+        }
+      ],
+      "filtered": [
+        {
+          "onset_time": 4.403698444366455,
+          "offset_time": 4.730000019073486,
+          "midi_note": 60,
+          "velocity": 50
+        }
+      ]
+    },
+    {
+      "label": "中央C第二处",
+      "time": 5.65,
+      "raw": [
+        {
+          "onset_time": 5.634188175201416,
+          "offset_time": 5.829999923706055,
+          "midi_note": 48,
+          "velocity": 47
+        }
+      ],
+      "filtered": [
+        {
+          "onset_time": 5.6404571533203125,
+          "offset_time": 6.300000190734863,
+          "midi_note": 60,
+          "velocity": 48
+        }
+      ]
+    },
+    {
+      "label": "中央C第三处",
+      "time": 10.03,
+      "raw": [
+        {
+          "onset_time": 10.02715015411377,
+          "offset_time": 10.149999618530273,
+          "midi_note": 48,
+          "velocity": 42
+        }
+      ],
+      "filtered": [
+        {
+          "onset_time": 10.032562255859375,
+          "offset_time": 10.09000015258789,
+          "midi_note": 48,
+          "velocity": 37
+        },
+        {
+          "onset_time": 10.03228759765625,
+          "offset_time": 10.395071983337402,
+          "midi_note": 60,
+          "velocity": 43
+        }
+      ]
+    },
+    {
+      "label": "G4第一处",
+      "time": 10.66,
+      "raw": [
+        {
+          "onset_time": 10.662698745727539,
+          "offset_time": 10.960000038146973,
+          "midi_note": 55,
+          "velocity": 45
+        }
+      ],
+      "filtered": [
+        {
+          "onset_time": 10.657095909118652,
+          "offset_time": 10.949999809265137,
+          "midi_note": 55,
+          "velocity": 41
+        }
+      ]
+    },
+    {
+      "label": "G4第二处",
+      "time": 16.36,
+      "raw": [],
+      "filtered": [
+        {
+          "onset_time": 16.371898651123047,
+          "offset_time": 16.709999084472656,
+          "midi_note": 55,
+          "velocity": 30
+        }
+      ]
+    },
+    {
+      "label": "真实低音C3对照",
+      "time": 19.01,
+      "raw": [
+        {
+          "onset_time": 19.011940002441406,
+          "offset_time": 19.276123046875,
+          "midi_note": 48,
+          "velocity": 38
+        }
+      ],
+      "filtered": [
+        {
+          "onset_time": 19.010892868041992,
+          "offset_time": 19.6200008392334,
+          "midi_note": 48,
+          "velocity": 31
+        }
+      ]
+    }
+  ],
+  "raw_count": 234,
+  "filtered_count": 269,
+  "decision": "Reject blanket 180Hz high-pass as production fix. Local octave improvements, residual and new discrepancies; no independent overall accuracy ground truth."
+}

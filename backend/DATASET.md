@@ -78,3 +78,33 @@ python -m unittest discover -s tests -v
 ## 从其他平台补充录音
 
 使用 [录音候选检索](RECORDINGS.md)，根据已有 IMSLP 作品信息在 Internet Archive 与 Wikimedia Commons 搜索音轨，核对版本后下载。候选证据和许可单独保存，不改写 IMSLP 元数据；下载结果兼容本工作台和现有 R2 增量同步。
+
+## Cloudflare R2 数据
+
+已有 R2 数据可通过 [R2 读取适配器](R2.md) 自动列举并按作品缓存到本地，再在本界面选中缓存根目录扫描。无需重新采集 IMSLP，也无需先下载整个桶。既有 `audio/`、`scores/` 与作品元数据结构保持一致。
+
+## 当前 Mac 后台服务
+
+本机已安装用户级 LaunchAgent `~/Library/LaunchAgents/com.music2pdf.dataset.plist`，登录后自动启动，异常退出后恢复；页面地址仍为 http://127.0.0.1:8766 。日志位于 `~/Library/Logs/Music2PDF/`。此服务直接运行当前项目 backend 的虚拟环境，移动项目目录后需要更新服务路径。电脑关机或退出登录期间本地网页不可用。
+
+停止并取消本次登录的后台服务：
+
+```sh
+launchctl bootout gui/$(id -u)/com.music2pdf.dataset
+```
+
+再次启用：
+
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.music2pdf.dataset.plist
+```
+
+PDF 预览现由本机服务按页渲染成图片，支持上一页、下一页和下载原文件，不依赖浏览器内置 PDF 插件。默认显示宽度适应侧栏，窄屏可横向滚动查看完整谱面。加密或损坏 PDF 会提示具体错误。2026-09-09：117项测试通过，实际缓存的16份PDF解析成功，并验证真实乐谱首面PNG渲染。
+
+## 识谱与校对入口
+
+点击作品中的PDF后，在预览下方选择页码并开始识谱。支持Audiveris后台转换、MusicXML下载、打开本机校对工程、导入校对稿和保存人工核对状态。详见 [OMR.md](OMR.md)。识谱与校对结果仍未完成音频时间对齐，不自动成为训练标签。
+
+## 乐谱时间对齐
+
+选择作品后可进入“04 乐谱与录音时间对齐”：读取结构化乐谱及速度，打开MuseScore校对，生成录音小节时间候选并试听修正，保存和导出JSON。详见 [ALIGNMENT.md](ALIGNMENT.md)。

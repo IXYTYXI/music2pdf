@@ -78,3 +78,9 @@ Basic Pitch 模型和实现由 Spotify 提供，Apache-2.0；TensorFlow.js 为 A
 ## 跨平台补充录音
 
 [录音候选检索](backend/RECORDINGS.md) 支持 Internet Archive、Wikimedia Commons：从本地乐谱说明检索对应作品的录音，展示匹配依据与版本冲突，核对选定后下载并保留来源，自动进入已有 R2 同步目录。
+
+## 从 R2 读取已有数据
+
+[R2 读取适配器](backend/R2.md) 支持自动列举桶内作品，按作品选择性下载到可恢复的本地缓存，并接入数据工作台的试听、PDF预览与数据划分。支持现有 `imslp/作品ID/audio|scores` 目录，不需要再次采集IMSLP。读取操作不修改R2对象。
+
+本地数据工作台已提供 PDF 识谱与校对入口，详见 [识谱与校对说明](backend/OMR.md)。

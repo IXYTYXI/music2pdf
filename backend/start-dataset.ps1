@@ -6,7 +6,7 @@ try {
         & py -3.11 -m venv .venv-dataset
         if ($LASTEXITCODE -ne 0) { throw 'Install Python 3.11 x64 with the Python launcher, then retry.' }
     }
-    & $pythonExe -m pip install -r requirements-api.txt
+    & $pythonExe -m pip install -r requirements-api.txt -r requirements-r2.txt -r requirements-alignment.txt
     if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
     $env:PYTHONUTF8 = '1'
     Write-Host 'Dataset workbench: http://127.0.0.1:8766 - keep this window open.'

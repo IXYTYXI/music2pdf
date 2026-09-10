@@ -86,3 +86,55 @@ def file(root: str, path: str):
     if len(relative.parts) < 3 or relative.parts[1] not in ('audio', 'scores'):
         raise HTTPException(404, '只预览作品目录中的录音与 PDF。')
     return FileResponse(source)
+
+from dataset_cloud import router as cloud_router
+app.include_router(cloud_router)
+
+# Page images work in embedded browsers without a native PDF plugin.
+from fastapi.responses import Response
+from fastapi import Query
+import threading
+pdf_lock = threading.Lock()
+
+
+def pdf_document(root, path):
+    import pymupdf
+    source = Path(file(root, path).path)
+    if source.suffix.lower() != '.pdf': raise HTTPException(400, '请选择 PDF 文件。')
+    try:
+        doc = pymupdf.open(source)
+        if doc.needs_pass:
+            doc.close()
+            raise HTTPException(400, '此 PDF 已加密，请先解密后导入。')
+        return doc
+    except HTTPException: raise
+    except Exception: raise HTTPException(400, '无法解析 PDF，文件可能损坏或不是有效乐谱文件。')
+
+
+@app.get('/api/pdf/info')
+def pdf_info(root: str, path: str):
+    with pdf_lock, pdf_document(root, path) as doc:
+        return {'pages': len(doc)}
+
+
+@app.get('/api/pdf/page')
+def pdf_page(root: str, path: str, page: int = Query(1, ge=1)):
+    import pymupdf
+    with pdf_lock, pdf_document(root, path) as doc:
+        if page > len(doc): raise HTTPException(404, '页码超出范围。')
+        try:
+            sheet = doc[page - 1]
+            scale = min(2.0, 2200 / max(sheet.rect.width, sheet.rect.height))
+            data = sheet.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False).tobytes('png')
+            return Response(data, media_type='image/png', headers={'Cache-Control': 'no-store'})
+        except Exception: raise HTTPException(400, '此页无法渲染，请下载原 PDF 查看。')
+
+from dataset_omr import router as omr_router
+app.include_router(omr_router)
+
+from dataset_alignment import router as alignment_router
+app.include_router(alignment_router)
+
+@app.get("/alignment.js")
+def alignment_script():
+    return FileResponse(BASE / "dataset_ui/alignment.js",media_type="text/javascript")
