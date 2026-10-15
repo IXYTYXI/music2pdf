@@ -1,0 +1,15 @@
+torch==2.8.0
+torchaudio==2.8.0
+numpy<2
+librosa
+soundfile
+ml_collections
+omegaconf==2.2.3
+tqdm
+colorama
+safetensors
+psutil
+demucs==4.0.1
+
+six
+resampy
